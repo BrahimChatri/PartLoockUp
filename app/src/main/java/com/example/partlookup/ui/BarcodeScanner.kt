@@ -37,6 +37,32 @@ import java.util.concurrent.Executors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/**
+ * Processes a scanned barcode value according to the specified rules:
+ * - If starts with 'PP', remove first 'P'
+ * - If starts with 'P' and second char is '4', remove 'P'
+ * - If starts with 'P' and second char is '0', keep as is
+ * - Otherwise, return original value
+ */
+private fun processScannedValue(value: String): String {
+    return when {
+        // Handle PP prefix
+        value.startsWith("PP") -> value.substring(1)
+        
+        // Handle P prefix
+        value.startsWith("P") && value.length > 1 -> {
+            when (value[1]) {
+                '4' -> value.substring(1) // Remove P for P4 prefix
+                '0' -> value // Keep as is for P0 prefix
+                else -> value // Keep as is for other P prefixes
+            }
+        }
+        
+        // Return original value for all other cases
+        else -> value
+    }
+}
+
 @Composable
 fun BarcodeScanner(
     onBarcodeDetected: (String) -> Unit,
@@ -147,12 +173,15 @@ fun BarcodeScanner(
                                                 lastScannedBarcode = rawValue
                                                 lastScanTime = System.currentTimeMillis()
                                                 
+                                                // Process the scanned value according to the rules
+                                                val processedValue = processScannedValue(rawValue)
+                                                
                                                 // Play a louder beep sound
                                                 val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
                                                 toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
                                                 
-                                                // Immediately return the result
-                                                onBarcodeDetected(rawValue)
+                                                // Return the processed value
+                                                onBarcodeDetected(processedValue)
                                             }
                                         }
                                     }
