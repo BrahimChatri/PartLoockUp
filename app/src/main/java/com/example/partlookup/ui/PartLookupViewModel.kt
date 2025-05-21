@@ -1,6 +1,7 @@
 package com.example.partlookup.ui
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -13,6 +14,32 @@ import kotlinx.coroutines.launch
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
+/**
+ * Processes a part number according to the specified rules:
+ * - If starts with 'PP', remove first 'P'
+ * - If starts with 'P' and second char is '4', remove 'P'
+ * - If starts with 'P' and second char is '0', keep as is
+ * - Otherwise, return original value
+ */
+private fun processPartNumber(value: String): String {
+    return when {
+        // Handle PP prefix
+        value.startsWith("PP") -> value.substring(1)
+        
+        // Handle P prefix
+        value.startsWith("P") && value.length > 1 -> {
+            when (value[1]) {
+                '4' -> value.substring(1) // Remove P for P4 prefix
+                '0' -> value // Keep as is for P0 prefix
+                else -> value // Keep as is for other P prefixes
+            }
+        }
+        
+        // Return original value for all other cases
+        else -> value
+    }
+}
+
 class PartLookupViewModel(private val partDao: PartDao) : ViewModel() {
     private val _uiState = MutableStateFlow<PartLookupUiState>(PartLookupUiState.Initial)
     val uiState: StateFlow<PartLookupUiState> = _uiState.asStateFlow()
@@ -21,13 +48,25 @@ class PartLookupViewModel(private val partDao: PartDao) : ViewModel() {
         viewModelScope.launch {
             _uiState.value = PartLookupUiState.Loading
             try {
-                val part = partDao.getPartByNumber(partNumber)
+                // Process the part number according to rules
+                val processedPartNumber = processPartNumber(partNumber)
+                
+                // Log the processed part number for debugging
+                Log.d("PartLookup", "Original part number: $partNumber, Processed: $processedPartNumber")
+                
+                val part = partDao.getPartByNumber(processedPartNumber)
                 if (part != null) {
                     _uiState.value = PartLookupUiState.Success(part)
                 } else {
-                    _uiState.value = PartLookupUiState.Error("Part not found")
+                    // Log the failed lookup
+                    Log.w("PartLookup", "Part not found. Processed number: $processedPartNumber")
+                    _uiState.value = PartLookupUiState.Error(
+                        "Part not found.\nNumber scanned: $processedPartNumber"
+                    )
                 }
             } catch (e: Exception) {
+                // Log any errors that occur during lookup
+                Log.e("PartLookup", "Error looking up part: ${e.message}", e)
                 _uiState.value = PartLookupUiState.Error(e.message ?: "Unknown error occurred")
             }
         }
@@ -67,6 +106,7 @@ class PartLookupViewModel(private val partDao: PartDao) : ViewModel() {
                     _uiState.value = PartLookupUiState.Success(null)
                 }
             } catch (e: Exception) {
+                Log.e("PartLookup", "Failed to import CSV: ${e.message}", e)
                 _uiState.value = PartLookupUiState.Error("Failed to import CSV: ${e.message}")
             }
         }
