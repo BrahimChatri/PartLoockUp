@@ -100,7 +100,6 @@ fun BarcodeScanner(
         if (!hasCameraPermission) {
             launcher.launch(Manifest.permission.CAMERA)
         }
-        // Reduced initial delay from 4000 to 2000 milliseconds
         delay(2000)
         isInitialDelay = false
     }
