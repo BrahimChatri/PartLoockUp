@@ -1,6 +1,7 @@
 package com.example.partlookup.ui
 
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -45,13 +46,19 @@ fun MainScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let { 
-            uploadedFileName = uri.lastPathSegment
+            // Get the actual file name using content resolver
+            val cursor = context.contentResolver.query(uri, null, null, null, null)
+            val fileName = cursor?.use {
+                val nameIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                it.moveToFirst()
+                it.getString(nameIndex)
+            } ?: "Unknown file"
+            uploadedFileName = fileName
             
             // Get content type from content resolver
             val mimeType = context.contentResolver.getType(uri)
             Log.d("FileUpload", "MIME type: $mimeType")
             
-            val fileName = uri.lastPathSegment ?: ""
             Log.d("FileUpload", "File name: $fileName")
             
             // Get the file extension, handling potential null cases
@@ -339,12 +346,50 @@ fun PartDetailsCard(part: com.example.partlookup.data.Part) {
             // Split the description into lines and display each line
             part.description.split("\n").forEach { line ->
                 if (line.isNotEmpty()) {
-                    Text(
-                        text = line,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
+                    if (line.startsWith("Part details")) {
+                        // Title style
+                        Text(
+                            text = line,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    } else {
+                        // Split label and value
+                        val parts = line.split(":", limit = 2)
+                        if (parts.size == 2) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                // Label style
+                                Text(
+                                    text = "${parts[0]}:",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                // Value style - slightly different
+                                Text(
+                                    text = parts[1].trim(),
+                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                    ),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.weight(2f)
+                                )
+                            }
+                        } else {
+                            // Fallback for any line that doesn't match the pattern
+                            Text(
+                                text = line,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                        }
+                    }
                 }
             }
         }

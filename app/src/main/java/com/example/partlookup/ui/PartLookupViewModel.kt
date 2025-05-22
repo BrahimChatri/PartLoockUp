@@ -80,14 +80,14 @@ class PartLookupViewModel(private val partDao: PartDao) : ViewModel() {
                     val response = if (processedPartNumber.startsWith("4")) {
                         // For parts starting with 4, include new reference
                         "Part details\n" +
-                        "scanned part number: $processedPartNumber\n" +
-                        "New reference: ${part.newReference ?: "N/A"}\n" +
-                        "EMP location: ${part.location}"
+                        "Scanned part :   $processedPartNumber\n" +
+                        "New reference :   ${part.newReference ?: "N/A"}\n" +
+                        "EMP location :   ${part.location}"
                     } else {
                         // For other parts (starting with P), show basic info
                         "Part details\n" +
-                        "scanned part number: $processedPartNumber\n" +
-                        "EMP location: ${part.location}"
+                        "Scanned part :  $processedPartNumber\n" +
+                        "EMP location :  ${part.location}"
                     }
                     
                     _uiState.value = PartLookupUiState.Success(part.copy(description = response))
