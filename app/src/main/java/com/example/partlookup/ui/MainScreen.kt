@@ -336,14 +336,17 @@ fun PartDetailsCard(part: com.example.partlookup.data.Part) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Text(
-                text = "Part Details",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-            DetailRow("Part Number", part.partNumber)
-            DetailRow("Location", part.location)
+            // Split the description into lines and display each line
+            part.description.split("\n").forEach { line ->
+                if (line.isNotEmpty()) {
+                    Text(
+                        text = line,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
+            }
         }
     }
 }

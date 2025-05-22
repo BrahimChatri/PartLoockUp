@@ -78,10 +78,10 @@ class PartLookupViewModel(private val partDao: PartDao) : ViewModel() {
                     
                     // Format response based on part number prefix
                     val response = if (processedPartNumber.startsWith("4")) {
-                        // For parts starting with 4, include new reference if available
+                        // For parts starting with 4, include new reference
                         "Part details\n" +
                         "scanned part number: $processedPartNumber\n" +
-                        (part.newReference?.let { "New reference: $it\n" } ?: "") +
+                        "New reference: ${part.newReference ?: "N/A"}\n" +
                         "EMP location: ${part.location}"
                     } else {
                         // For other parts (starting with P), show basic info
