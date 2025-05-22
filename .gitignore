@@ -13,3 +13,62 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Built application files
+*.apk
+*.ap_
+*.aab
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+.gradle-cache/
+
+# Local configuration
+local.properties
+*.iml
+
+# IDE specific
+.idea/
+*.iws
+*.ipr
+*.iml
+.idea/inspectionProfiles/
+.idea/workspace.xml
+.idea/libraries/
+.idea/modules.xml
+.idea/caches/
+
+# JetBrains
+*.swp
+*.swo
+
+# Mac system files
+.DS_Store
+
+# Log and temp files
+*.log
+*.tmp
+*.temp
+
+# Keystore files
+*.jks
+*.keystore
+
+# Misc
+captures/
+output.json
+
+# Kotlin/Java specific
+out/
+bin/
+
+# Prevent pushing test leftovers
+*.orig
+*.rej
+*.diff
+*.patch
+
+# VS Code users
+.vscode/
