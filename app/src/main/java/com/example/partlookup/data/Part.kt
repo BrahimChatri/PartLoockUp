@@ -9,5 +9,6 @@ data class Part(
     val partNumber: String,
     val description: String,
     val location: String,
-    val quantity: Int = 0
+    val quantity: Int = 0,
+    val newReference: String? = null  // New field for harmonized reference
 ) 

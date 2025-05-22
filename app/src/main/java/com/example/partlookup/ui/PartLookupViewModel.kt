@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import org.apache.poi.xssf.usermodel.XSSFWorkbook
+import org.apache.poi.ss.usermodel.Row
 
 /**
  * Processes a part number according to the specified rules:
@@ -46,27 +48,57 @@ class PartLookupViewModel(private val partDao: PartDao) : ViewModel() {
 
     fun searchPart(partNumber: String) {
         viewModelScope.launch {
+            Log.e("DEBUG_PART", "Starting search for part: $partNumber")
             _uiState.value = PartLookupUiState.Loading
             try {
+                // Handle empty string case (used for unsupported file types)
+                if (partNumber.isEmpty()) {
+                    Log.e("DEBUG_PART", "Empty part number received")
+                    _uiState.value = PartLookupUiState.Error("Unsupported file type. Please upload a CSV or XLSX file.")
+                    return@launch
+                }
+
                 // Process the part number according to rules
                 val processedPartNumber = processPartNumber(partNumber)
+                Log.e("DEBUG_PART", "Processed part number: $processedPartNumber")
                 
-                // Log the processed part number for debugging
-                Log.d("PartLookup", "Original part number: $partNumber, Processed: $processedPartNumber")
+                // Try to find the part with the processed number
+                var part = partDao.getPartByNumber(processedPartNumber)
+                Log.e("DEBUG_PART", "First search result for $processedPartNumber: ${part?.partNumber}")
                 
-                val part = partDao.getPartByNumber(processedPartNumber)
+                // If not found and the number starts with 4, try with the original number
+                if (part == null && processedPartNumber.startsWith("4")) {
+                    Log.e("DEBUG_PART", "Trying original number: $partNumber")
+                    part = partDao.getPartByNumber(partNumber)
+                    Log.e("DEBUG_PART", "Second search result for $partNumber: ${part?.partNumber}")
+                }
+                
                 if (part != null) {
-                    _uiState.value = PartLookupUiState.Success(part)
+                    Log.e("DEBUG_PART", "Found part: ${part.partNumber}, New Reference: ${part.newReference}, Location: ${part.location}")
+                    
+                    // Format response based on part number prefix
+                    val response = if (processedPartNumber.startsWith("4")) {
+                        // For parts starting with 4, include new reference if available
+                        "Part details\n" +
+                        "scanned part number: $processedPartNumber\n" +
+                        (part.newReference?.let { "New reference: $it\n" } ?: "") +
+                        "EMP location: ${part.location}"
+                    } else {
+                        // For other parts (starting with P), show basic info
+                        "Part details\n" +
+                        "scanned part number: $processedPartNumber\n" +
+                        "EMP location: ${part.location}"
+                    }
+                    
+                    _uiState.value = PartLookupUiState.Success(part.copy(description = response))
                 } else {
-                    // Log the failed lookup
-                    Log.w("PartLookup", "Part not found. Processed number: $processedPartNumber")
+                    Log.e("DEBUG_PART", "Part not found. Original: $partNumber, Processed: $processedPartNumber")
                     _uiState.value = PartLookupUiState.Error(
                         "Part not found.\nNumber scanned: $processedPartNumber"
                     )
                 }
             } catch (e: Exception) {
-                // Log any errors that occur during lookup
-                Log.e("PartLookup", "Error looking up part: ${e.message}", e)
+                Log.e("DEBUG_PART", "Error in searchPart: ${e.message}", e)
                 _uiState.value = PartLookupUiState.Error(e.message ?: "Unknown error occurred")
             }
         }
@@ -108,6 +140,81 @@ class PartLookupViewModel(private val partDao: PartDao) : ViewModel() {
             } catch (e: Exception) {
                 Log.e("PartLookup", "Failed to import CSV: ${e.message}", e)
                 _uiState.value = PartLookupUiState.Error("Failed to import CSV: ${e.message}")
+            }
+        }
+    }
+
+    fun importXlsx(uri: Uri, contentResolver: android.content.ContentResolver) {
+        viewModelScope.launch {
+            Log.e("DEBUG_XLSX", "Starting XLSX import")
+            _uiState.value = PartLookupUiState.Loading
+            try {
+                contentResolver.openInputStream(uri)?.use { inputStream ->
+                    val workbook = XSSFWorkbook(inputStream)
+                    val sheet = workbook.getSheetAt(0)
+                    val parts = mutableListOf<Part>()
+                    
+                    Log.e("DEBUG_XLSX", "Total rows in sheet: ${sheet.lastRowNum}")
+                    
+                    // Skip header row
+                    for (rowIndex in 1..sheet.lastRowNum) {
+                        val row: Row? = sheet.getRow(rowIndex)
+                        if (row != null) {
+                            // Helper function to safely get cell value as string
+                            fun getCellValueAsString(cell: org.apache.poi.ss.usermodel.Cell?): String? {
+                                if (cell == null) return null
+                                return when (cell.cellType) {
+                                    org.apache.poi.ss.usermodel.CellType.STRING -> cell.stringCellValue
+                                    org.apache.poi.ss.usermodel.CellType.NUMERIC -> {
+                                        // Use DecimalFormat to avoid scientific notation
+                                        val formatter = java.text.DecimalFormat("0")
+                                        formatter.isGroupingUsed = false
+                                        formatter.format(cell.numericCellValue)
+                                    }
+                                    else -> null
+                                }
+                            }
+
+                            // Get part number (required)
+                            val partNumber = getCellValueAsString(row.getCell(0))?.trim()
+                            if (partNumber.isNullOrEmpty()) {
+                                Log.e("DEBUG_XLSX", "Row $rowIndex - Skipping: Empty part number")
+                                continue
+                            }
+
+                            // Get harmonizer (optional)
+                            val harmonizer = getCellValueAsString(row.getCell(1))?.trim()
+                            
+                            // Get location (required)
+                            val location = getCellValueAsString(row.getCell(2))?.trim()
+                            if (location.isNullOrEmpty()) {
+                                Log.e("DEBUG_XLSX", "Row $rowIndex - Skipping: Empty location")
+                                continue
+                            }
+                            
+                            Log.e("DEBUG_XLSX", "Row $rowIndex - Part: $partNumber, Harmonizer: $harmonizer, Location: $location")
+                            
+                            parts.add(
+                                Part(
+                                    partNumber = partNumber,
+                                    location = location,
+                                    description = "", // Not used in your format
+                                    quantity = 0, // Not used in your format
+                                    newReference = harmonizer // Store harmonized reference if present
+                                )
+                            )
+                        }
+                    }
+                    
+                    Log.e("DEBUG_XLSX", "Total parts to import: ${parts.size}")
+                    partDao.deleteAllParts()
+                    partDao.insertParts(parts)
+                    Log.e("DEBUG_XLSX", "Import completed successfully")
+                    _uiState.value = PartLookupUiState.Success(null)
+                }
+            } catch (e: Exception) {
+                Log.e("DEBUG_XLSX", "Failed to import XLSX: ${e.message}", e)
+                _uiState.value = PartLookupUiState.Error("Failed to import XLSX: ${e.message}")
             }
         }
     }
